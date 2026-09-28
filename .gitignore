@@ -12,3 +12,7 @@ __pycache__/
 
 # Docker
 docker-compose.yml
+
+# Node & Promptfoo
+node_modules/
+.promptfoo/

@@ -1,6 +1,8 @@
-# Reemplazar con la verdadera api key
-NVIDIA_API_KEY=TU_API_KEY_AQUI
-NVIDIA_MODEL=meta/llama-3.2-11b-vision-instruct
+# Reemplazar con datos verdaderos de produccion
+NVIDIA_API_KEY=
+NVIDIA_MODEL=
+OPENAI_API_KEY=
+OPENAI_BASE_URL=
 
 # Configuración de base de datos PostgreSQL con pgvector
 DB_HOST=localhost
