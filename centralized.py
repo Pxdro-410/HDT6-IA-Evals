@@ -63,14 +63,9 @@ TOOLS = [
     }
 ]
 
-def main():
-    print(" ")
-    print("  Arquitectura centralizada - Parachute S.A.")
-    print("  El supervisor central controla a múltiples Workers")
-    print(" ")
-    print("Escribe 'Bye' o presiona ESC para salir.\n")
-
-    messages = [
+def get_initial_messages():
+    """Genera los mensajes iniciales del sistema."""
+    return [
         {
             "role": "system",
             "content": (
@@ -83,6 +78,84 @@ def main():
         }
     ]
 
+def run_agent_turn(user_input: str, messages: list = None) -> dict:
+    """
+    Ejecuta un turno conversacional del Supervisor Central.
+    Retorna un diccionario con la respuesta en texto, herramientas llamadas, y metadatos.
+    """
+    if messages is None:
+        messages = get_initial_messages()
+
+    messages.append({"role": "user", "content": user_input})
+    tools_called = []
+    tool_args = []
+    tool_results = []
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=messages,
+        tools=TOOLS,
+        tool_choice="auto",
+        temperature=0.1
+    )
+    
+    msg = response.choices[0].message
+    
+    # Workaround NIM limitation
+    if msg.tool_calls and len(msg.tool_calls) > 1:
+        msg.tool_calls = msg.tool_calls[:1]
+
+    messages.append(msg)
+
+    if msg.tool_calls:
+        for tool_call in msg.tool_calls:
+            func_name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+            tools_called.append(func_name)
+            tool_args.append(args)
+
+            if func_name == "delegate_to_faq_worker":
+                result = faq_worker_agent(args.get("query", user_input))
+            elif func_name == "delegate_to_weather_worker":
+                result = weather_worker_agent(args.get("date_str"))
+            else:
+                result = "Herramienta desconocida."
+
+            tool_results.append(result)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result
+            })
+
+        # Generar respuesta final
+        final_resp = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            temperature=0.1
+        )
+        final_text = final_resp.choices[0].message.content
+        messages.append({"role": "assistant", "content": final_text})
+    else:
+        final_text = msg.content
+        messages.append({"role": "assistant", "content": final_text})
+
+    return {
+        "output": final_text,
+        "tools_called": tools_called,
+        "tool_args": tool_args,
+        "tool_results": tool_results,
+        "messages": messages
+    }
+
+def main():
+    print(" ")
+    print("  Arquitectura centralizada - Parachute S.A.")
+    print("  El supervisor central controla a múltiples Workers")
+    print(" ")
+    print("Escribe 'Bye' para salir.\n")
+
+    messages = get_initial_messages()
     is_running = True
     while is_running:
         try:
@@ -93,58 +166,12 @@ def main():
             if not user_input:
                 continue
 
-            messages.append({"role": "user", "content": user_input})
-
-            response = client.chat.completions.create(
-                model=MODEL,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice="auto",
-                temperature=0.1
-            )
-            
-            msg = response.choices[0].message
-            
-            # Workaround NIM limitation
-            if msg.tool_calls and len(msg.tool_calls) > 1:
-                msg.tool_calls = msg.tool_calls[:1]
-
-            messages.append(msg)
-
-            if msg.tool_calls:
-                for tool_call in msg.tool_calls:
-                    func_name = tool_call.function.name
-                    args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
-
-                    if func_name == "delegate_to_faq_worker":
-                        print("  [Supervisor delegando al FAQ Worker...]")
-                        result = faq_worker_agent(args.get("query", user_input))
-                    elif func_name == "delegate_to_weather_worker":
-                        print(f"  [Supervisor delegando al Weather Worker para la fecha {args.get('date_str')}...]")
-                        result = weather_worker_agent(args.get("date_str"))
-                    else:
-                        result = "Herramienta desconocida."
-
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result
-                    })
-
-                # Generar respuesta final
-                final_resp = client.chat.completions.create(
-                    model=MODEL,
-                    messages=messages,
-                    temperature=0.1
-                )
-                final_text = final_resp.choices[0].message.content
-                print(f"Supervisor Central: {final_text}")
-                messages.append({"role": "assistant", "content": final_text})
-            else:
-                print(f"Supervisor Central: {msg.content}")
+            turn_result = run_agent_turn(user_input, messages)
+            print(f"Supervisor Central: {turn_result['output']}")
 
         except Exception as e:
             print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
+
