@@ -1,0 +1,10 @@
+# Reemplazar con la verdadera api key
+NVIDIA_API_KEY=TU_API_KEY_AQUI
+NVIDIA_MODEL=meta/llama-3.2-11b-vision-instruct
+
+# Configuración de base de datos PostgreSQL con pgvector
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=parachute_faqs
+DB_USER=postgres
+DB_PASSWORD=postgrespassword
