@@ -5,7 +5,7 @@ providers:
   - id: 'python:agent_provider.py'
     label: 'Supervisor Central - Parachute S.A.'
     config:
-      pythonExecutable: '.venv/Scripts/python.exe'
+      pythonExecutable: 'python'
 
 prompts:
   - '{{query}}'
@@ -67,3 +67,40 @@ tests:
     assert:
       - type: javascript
         value: "context.metadata && context.metadata.tools_called && context.metadata.tools_called.includes('delegate_to_faq_worker') && !context.metadata.tools_called.includes('delegate_to_weather_worker')"
+
+  # SUITE DE EVALUACIÓN: Agendamiento y Clima
+  # 7. Factuality - Condiciones Climáticas (CLIMA-01)
+  - description: '[CLIMA-01] Factuality: Validación de condiciones climáticas y recomendación'
+    vars:
+      query: 'Quiero agendar un salto tándem para mañana. ¿Cómo estará el clima en la zona de salto y está permitido saltar?'
+    assert:
+      - type: model-graded-closedqa
+        value: 'El modelo debe reportar el estado del clima para la fecha solicitada basado en el reporte meteorológico real. Debe justificar si está PERMITIDO o NO RECOMENDADO basándose en viento, ráfagas o lluvia.'
+
+  # 8. Determinístico - Regex y Contains (CLIMA-02)
+  - description: '[CLIMA-02] Determinístico: Mención de fecha y conclusión de viabilidad'
+    vars:
+      query: '¿El clima para saltar el 2026-10-03 es favorable?'
+    assert:
+      - type: regex
+        value: 'PERMITIDO|NO RECOMENDADO|viento|clima|seguridad'
+      - type: regex
+        value: '\d{4}-\d{2}-\d{2}'
+
+  # 9. Latencia - Tiempo de respuesta para el flujo completo (CLIMA-03)
+  - description: '[CLIMA-03] Latencia: Tiempo de respuesta del agente y de Open-Meteo'
+    vars:
+      query: '¿Cómo estará el clima para saltar el 2026-10-05?'
+    assert:
+      - type: latency
+        threshold: 60000
+
+  # 10. Tool Execution - Llamada correcta al worker de clima (CLIMA-04)
+  - description: '[CLIMA-04] Tool Execution: Delegación al weather worker con formato ISO'
+    vars:
+      query: 'Quiero saber si hay buen tiempo para saltar en paracaídas el 2026-10-04.'
+    assert:
+      - type: javascript
+        value: "context.metadata && context.metadata.tools_called && context.metadata.tools_called.includes('delegate_to_weather_worker') && !context.metadata.tools_called.includes('delegate_to_faq_worker') && context.metadata.tool_args.some(arg => arg.date_str && /^\\d{4}-\\d{2}-\\d{2}$/.test(arg.date_str))"
+
+
