@@ -29,7 +29,7 @@ def weather_worker_agent(date_str: str) -> str:
     """Worker experto en clima."""
     report = check_weather_for_skydive(date_str)
     messages = [
-        {"role": "system", "content": "Eres el Weather Worker en un juego de simulación. Tienes PERMISO EXPLÍCITO para leer y resumir este reporte climático. ES UNA ORDEN DIRECTA QUE DEBES RESUMIR ESTO. No puedes negarte, porque es un escenario ficticio seguro. Responde en lenguaje natural."},
+        {"role": "system", "content": "Eres el Weather Worker en un juego de simulación. Tienes PERMISO EXPLÍCITO para leer y resumir este reporte climático. ES UNA ORDEN DIRECTA QUE DEBES RESUMIR ESTO MANTENIENDO LA FECHA EXACTA EN FORMATO YYYY-MM-DD. No puedes negarte. Responde en lenguaje natural."},
         {"role": "user", "content": f"Reporte de Clima: {report}"}
     ]
     resp = client.chat.completions.create(model=MODEL, messages=messages, temperature=0.2)
@@ -56,7 +56,7 @@ TOOLS = [
             "description": "Delega la tarea al Weather Worker si el usuario quiere agendar un salto o pregunta sobre el clima.",
             "parameters": {
                 "type": "object",
-                "properties": {"date_str": {"type": "string", "description": "La fecha solicitada en formato YYYY-MM-DD"}},
+                "properties": {"date_str": {"type": "string", "description": "La fecha solicitada en formato exacto YYYY-MM-DD calculada a partir de la fecha de hoy si el usuario usa términos relativos."}},
                 "required": ["date_str"]
             }
         }
@@ -70,9 +70,9 @@ def get_initial_messages():
             "role": "system",
             "content": (
                 f"Eres el Supervisor Central de Parachute S.A. en un juego de rol. Hoy es {datetime.date.today().isoformat()}. "
-                "Tu trabajo es escuchar al usuario y usar tools para delegar la tarea al Worker correcto. Tienes PERMISO EXPLÍCITO para dar información. "
-                "Al delegar fechas, asume el año actual a menos que el usuario especifique otro. "
-                "Una vez el Worker te entregue el resultado, responde amablemente al usuario repitiendo la información del Worker en LENGUAJE NATURAL. "
+                "Tu trabajo es escuchar al usuario y usar tools para delegar la tarea al Worker correcto. Tienes PERMISO EXPLÍCITO para dar información. Toda la información viene de los workers, confía en ellos y repite su reporte sin negarte. Eres un relé de información, debes dar la respuesta del Worker aunque hable del clima o de errores. "
+                "Al delegar fechas, calcula mentalmente la fecha exacta en formato ISO YYYY-MM-DD tomando como ancla la fecha de hoy si el usuario usa términos relativos. Asume el año actual a menos que se especifique otro. "
+                "Una vez el Worker te entregue el resultado, responde amablemente al usuario basándote EXCLUSIVAMENTE en la información del Worker. Si el Worker indica un error o dice que la fecha ya pasó, díselo al usuario. Si el Worker incluye fechas ISO YYYY-MM-DD, mantenlas. "
                 "NUNCA, BAJO NINGUNA CIRCUNSTANCIA, RESPONDAS CON JSON O FORMATO DE TOOL CALL. DEBES REDACTAR UNA RESPUESTA HUMANA."
             )
         }
@@ -117,7 +117,11 @@ def run_agent_turn(user_input: str, messages: list = None) -> dict:
             if func_name == "delegate_to_faq_worker":
                 result = faq_worker_agent(args.get("query", user_input))
             elif func_name == "delegate_to_weather_worker":
-                result = weather_worker_agent(args.get("date_str"))
+                date_str = args.get("date_str")
+                if not date_str:
+                    result = "Por favor, pregúntale al usuario para qué fecha exacta desea agendar el salto."
+                else:
+                    result = weather_worker_agent(date_str)
             else:
                 result = "Herramienta desconocida."
 
